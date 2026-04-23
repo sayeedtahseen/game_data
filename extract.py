@@ -1,12 +1,17 @@
 import os
 import pandas as pd;
+from sqlalchemy import create_engine
 import requests;
 import pprint;
 import time
 from dotenv import load_dotenv
 
-load_dotenv()
-API_KEY=os.getenv('AUTH_KEY')
+load_dotenv();
+API_KEY=os.getenv('AUTH_KEY');
+engine = create_engine(
+    f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost:5332/{os.getenv('POSTGRES_DB')}"
+)
+
 
 from balldontlie import BalldontlieAPI
 from balldontlie.exceptions import RateLimitError
@@ -15,10 +20,12 @@ api = BalldontlieAPI(api_key=API_KEY);
 teamDf = None;
 playersDf = None;
 gamesDf = None;
+allStatsDf = None;
 
 # Get all team names and ids
 # To be queried later
 def getTeamNames():
+  global teamDf;
   nbaTeamList = []
   try:
     teams = api.nba.teams.list().data;
@@ -33,6 +40,8 @@ def getTeamNames():
         'abbreviation':  team.abbreviation
       })
     teamDf = pd.DataFrame(nbaTeamList);
+    # drop entries that are not in nba
+    teamDf.dropna(how='any', inplace=True); 
     teamDf.to_csv('teams.csv');
     print("Successfully retrieved teams data");
   except Exception as error:
@@ -41,13 +50,9 @@ def getTeamNames():
 
   # pprint.pprint(nbaTeamList);
 
-def readTeamList():
-  teamDf = pd.read_csv('teams.csv', index_col=0);
-  teamDf.dropna(how='any', inplace=True);
-  # pprint.pprint(teamDf);
-
-# Gets list of active players, needs subscription, smh
+# Gets list of active players, 
 def getPlayers():
+  global playersDf;
   nextCursor = None
   nbaPlayers = []
   try:
@@ -83,6 +88,7 @@ def getPlayers():
 
 # Get all games for current season
 def getGamesForCurrentSeason():
+  global gamesDf;
   gamesList = []
   nextCursor = None;
   kwargs = {
@@ -127,9 +133,10 @@ def getGamesForCurrentSeason():
   except Exception as error:
     print("Error retrieving games list: ", error);
 
-# Get game stats for each player
-def getGameStats():
-  global gamesDf
+# Get game stats for each player, for initial load
+def getAllGameStats():
+  global gamesDf;
+  global allStatsDf;
   if gamesDf is None:
     print("Getting games list from DB");
     gamesDf = pd.read_csv('games.csv');
@@ -184,22 +191,60 @@ def getGameStats():
         'game.visitor_team'],
         inplace=True);
 
-      allStats = pd.concat([allStats, statsDF], ignore_index=True);
+      allStatsDf = pd.concat([allStatsDf, statsDF], ignore_index=True);
       time.sleep(1.1);
 
-    allStats.to_csv('game_stats.csv', mode='a', index=False, header=False);
+    allStatsDf.to_csv('game_stats.csv', mode='a', index=False, header=False);
 
   except Exception as error:
     print('Error retrieving game stats: ', error);
-    if not allStats.empty:
-      allStats.to_csv('game_stats.csv');
-      print(f'Partial data saved: {len(allStats)} rows written to game_stats.csv');
+    if not allStatsDf.empty:
+      allStatsDf.to_csv('game_stats.csv');
+      print(f'Partial data saved: {len(allStatsDf)} rows written to game_stats.csv');
+
+
+# teams list read for inital load, and insert into teams table
+def readTeamListCSV():
+  global teamDf;
+  print('Reading teams list...')
+  try:
+    teamDf = pd.read_csv('teams.csv', index_col=0);
+    teamDf.dropna(how='any', inplace=True);
+  except Exception as error:
+    print("Error reading data from CSV for teams", error);
+
+  try:
+    teamDf.to_sql("teams", engine, if_exists='append', index=False);
+    print('Writing to teams table successful');
+  except Exception as error:
+    print("Error in writing teams to DB: ", error);
+  
+  
+
+# games list read for inital load, and insert into games table
+def readGamesListCSV():
+  global gamesDf;
+  print('Reading games list...')
+  
+  try:
+    gamesDf = pd.read_csv('games.csv', index_col=0);
+  except Exception as error:
+    print("Error reading data from CSV for games: ", error);
+
+  try:
+    gamesDf.to_sql("games", engine, if_exists='append', index=False);
+    print('Writing to games table successful');
+  except Exception as error:
+    print("Error in writing games to DB: ", error);
+  
 
 
 if __name__ == "__main__":
   print("Starting Extract");
   # getTeamNames();
-  # readTeamList();
+  # readTeamListCSV();
   # getPlayers();
   # getGamesForCurrentSeason();
-  getGameStats();
+  # getGameStats();
+  readTeamListCSV();
+  readGamesListCSV();

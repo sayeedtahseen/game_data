@@ -17,6 +17,18 @@ docker compose up -d
 
 The `-v` flag removes the volume so Postgres reinitializes and re-runs the SQL files.
 
+## Connection Details
+
+| Setting | Value |
+|---|---|
+| Host | `localhost` |
+| Port | `5332` |
+| User | `postgres` (default) |
+| Password | `postgres` (default) |
+| Database | `game_data` |
+
+Override defaults by setting `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` in `.env`.
+
 ## Schema
 
 ### `01_teams.sql`
@@ -25,12 +37,12 @@ Stores all 30 NBA teams. No foreign key dependencies — runs first.
 | Column | Type | Description |
 |---|---|---|
 | `id` | INTEGER | Primary key |
-| `conference` | VARCHAR | East or West |
-| `division` | VARCHAR | Division name |
-| `city` | VARCHAR | Team city |
-| `name` | VARCHAR | Team name |
-| `full_name` | VARCHAR | Full team name |
-| `abbreviation` | VARCHAR | 3-letter abbreviation |
+| `conference` | VARCHAR(10) | East or West |
+| `division` | VARCHAR(20) | Division name |
+| `city` | VARCHAR(50) | Team city |
+| `name` | VARCHAR(50) | Team name |
+| `full_name` | VARCHAR(100) | Full team name |
+| `abbreviation` | VARCHAR(5) | 3-letter abbreviation |
 
 ---
 
@@ -40,8 +52,8 @@ Stores all active NBA players. References `teams`.
 | Column | Type | Description |
 |---|---|---|
 | `id` | INTEGER | Primary key |
-| `first_name` | VARCHAR | Player first name |
-| `last_name` | VARCHAR | Player last name |
+| `first_name` | VARCHAR(100) | Player first name |
+| `last_name` | VARCHAR(100) | Player last name |
 | `team_id` | INTEGER | Foreign key → `teams.id` |
 
 ---
@@ -52,20 +64,20 @@ Stores all games for the current season. References `teams` for both home and vi
 | Column | Type | Description |
 |---|---|---|
 | `game_id` | INTEGER | Primary key |
-| `date` | TIMESTAMPTZ | Game date/time |
+| `date` | DATE | Game date |
 | `season` | INTEGER | Season year |
-| `status` | VARCHAR | Game status |
+| `status` | VARCHAR(50) | Game status |
 | `period` | INTEGER | Current period |
-| `time` | VARCHAR | Time remaining |
+| `time` | VARCHAR(20) | Time remaining |
 | `postseason` | BOOLEAN | Playoff game flag |
 | `home_team_score` | INTEGER | Home team score |
 | `visitor_team_score` | INTEGER | Visitor team score |
 | `home_team_id` | INTEGER | Foreign key → `teams.id` |
-| `home_team_name` | VARCHAR | Home team name |
-| `home_team_abb` | VARCHAR | Home team abbreviation |
+| `home_team_name` | VARCHAR(50) | Home team name |
+| `home_team_abb` | VARCHAR(5) | Home team abbreviation |
 | `visitor_team_id` | INTEGER | Foreign key → `teams.id` |
-| `visitor_team_name` | VARCHAR | Visitor team name |
-| `visitor_team_abb` | VARCHAR | Visitor team abbreviation |
+| `visitor_team_name` | VARCHAR(50) | Visitor team name |
+| `visitor_team_abb` | VARCHAR(5) | Visitor team abbreviation |
 
 ---
 
@@ -95,11 +107,11 @@ Stores per-player box score stats for every game. References `players`, `teams`,
 | `pf` | NUMERIC | Personal fouls |
 | `pts` | NUMERIC | Points |
 | `player_id` | INTEGER | Foreign key → `players.id` |
-| `player_first_name` | VARCHAR | Player first name |
-| `player_last_name` | VARCHAR | Player last name |
+| `player_first_name` | VARCHAR(100) | Player first name |
+| `player_last_name` | VARCHAR(100) | Player last name |
 | `player_team_id` | INTEGER | Foreign key → `teams.id` |
 | `game_id` | INTEGER | Foreign key → `games.game_id` |
-| `game_date` | TIMESTAMPTZ | Game date/time |
+| `game_date` | DATE | Game date |
 | `game_season` | INTEGER | Season year |
 | `game_postseason` | BOOLEAN | Playoff game flag |
 | `home_team_score` | INTEGER | Home team score |
@@ -128,3 +140,8 @@ games
 ```
 
 Files are numbered `01`–`04` so Docker runs them in the correct order — referenced tables must exist before the tables that depend on them.
+
+> **Note:** When replacing the `games` table, drop it with `CASCADE` first to avoid foreign key conflicts with `game_stats`:
+> ```python
+> conn.execute(text("DROP TABLE IF EXISTS games CASCADE"))
+> ```

@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS games (
     game_id             INTEGER PRIMARY KEY,
-    date                TIMESTAMPTZ,
+    date                DATE,
     season              INTEGER,
     status              VARCHAR(50),
     period              INTEGER,

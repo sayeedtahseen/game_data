@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS game_stats (
     player_last_name  VARCHAR(100),
     player_team_id  INTEGER REFERENCES teams(id),
     game_id         INTEGER REFERENCES games(game_id),
-    game_date       TIMESTAMPTZ,
+    game_date       DATE,
     game_season     INTEGER,
     game_postseason BOOLEAN,
     home_team_score INTEGER,
