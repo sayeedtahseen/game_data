@@ -23,7 +23,7 @@ def game_data_init():
 
   @task()
   def getPlayersTask():
-    return getPlayers;
+    return getPlayers();
   
   @task()
   def loadPlayersTask(players):
@@ -37,19 +37,22 @@ def game_data_init():
   def loadGamesListTask(gamesList):
     writeGamesListToDB(gamesList);
 
-  @taks()
+  @task()
   def loadInitialGameStats():
     loadGameStatsINTIAL();
 
-  teamNames = getTeamsNamesTask();
-  loadTeamNamesTask(teamNames);
+  teamNames = getTeamsNamesTask()
+  loadedTeams = loadTeamNamesTask(teamNames)
 
-  playersList = getPlayersTask();
-  loadPlayersTask(playersList);
+  playersList = getPlayersTask()
+  loadedPlayers = loadPlayersTask(playersList)
+  loadedTeams >> loadedPlayers
 
-  gamesList = getSeasonGamesTask();
-  loadGamesListTask(gamesList);
+  gamesList = getSeasonGamesTask()
+  loadedGames = loadGamesListTask(gamesList)
+  loadedTeams >> loadedGames
 
-  loadInitialGameStats();
+  loadedStats = loadInitialGameStats()
+  [loadedPlayers, loadedGames] >> loadedStats
 
 game_data_init();

@@ -209,7 +209,6 @@ def readTeamListCSV():
   try:
     teamDf = pd.read_csv('teams.csv', index_col=0);
     teamDf.dropna(how='any', inplace=True);
-    return teamDf.to_json()
   except Exception as error:
     print("Error reading data from CSV for teams", error);
 
@@ -241,4 +240,4 @@ def readGamesListCSV():
 
 if __name__ == "__main__":
   print("Starting Extract");
-  getGamesForCurrentSeason()
+  readTeamListCSV()

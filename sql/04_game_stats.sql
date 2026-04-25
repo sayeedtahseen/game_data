@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS game_stats (
     turnover        NUMERIC,
     pf              NUMERIC,
     pts             NUMERIC,
-    player_id       INTEGER REFERENCES players(id),
+    player_id       INTEGER,
     player_first_name VARCHAR(100),
     player_last_name  VARCHAR(100),
     player_team_id  INTEGER REFERENCES teams(id),
@@ -27,9 +27,9 @@ CREATE TABLE IF NOT EXISTS game_stats (
     game_date       DATE,
     game_season     INTEGER,
     game_postseason BOOLEAN,
-    home_team_score INTEGER,
-    visitor_team_score INTEGER,
-    home_team_id    INTEGER REFERENCES teams(id),
-    visitor_team_id INTEGER REFERENCES teams(id),
+    game_home_team_score INTEGER,
+    game_visitor_team_score INTEGER,
+    game_home_team_id    INTEGER REFERENCES teams(id),
+    game_visitor_team_id INTEGER REFERENCES teams(id),
     load_date       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
