@@ -30,5 +30,6 @@ CREATE TABLE IF NOT EXISTS game_stats (
     home_team_score INTEGER,
     visitor_team_score INTEGER,
     home_team_id    INTEGER REFERENCES teams(id),
-    visitor_team_id INTEGER REFERENCES teams(id)
+    visitor_team_id INTEGER REFERENCES teams(id),
+    load_date       TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
