@@ -1,30 +1,21 @@
 import os
 import pandas as pd;
-from sqlalchemy import create_engine
 import pprint;
 import time
 from dotenv import load_dotenv
 
 load_dotenv();
 API_KEY=os.getenv('AUTH_KEY');
-engine = create_engine(
-    f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost:5332/{os.getenv('POSTGRES_DB')}"
-)
 
 
 from balldontlie import BalldontlieAPI
 from balldontlie.exceptions import RateLimitError
 api = BalldontlieAPI(api_key=API_KEY);
 
-teamDf = None;
-playersDf = None;
-gamesDf = None;
-allStatsDf = None;
 
 # Get all team names and ids
-# To be queried later
 def getTeamNames():
-  global teamDf;
+  teamDf = None;
   nbaTeamList = []
   try:
     teams = api.nba.teams.list().data;
@@ -37,21 +28,22 @@ def getTeamNames():
         'name': team.name, 
         'full_name':  team.full_name, 
         'abbreviation':  team.abbreviation
-      })
+      });
+
     teamDf = pd.DataFrame(nbaTeamList);
+
     # drop entries that are not in nba
     teamDf.dropna(how='any', inplace=True); 
-    teamDf.to_csv('teams.csv');
-    print("Successfully retrieved teams data");
+
+    print("Successfully retrieved players data");
+    return teamDf;
   except Exception as error:
     print("Error retrieving teams: ", error);
-    
 
-  # pprint.pprint(nbaTeamList);
 
 # Gets list of active players, 
 def getPlayers():
-  global playersDf;
+  playersDf = None;
   nextCursor = None
   nbaPlayers = []
   try:
@@ -80,18 +72,20 @@ def getPlayers():
       time.sleep(1.5);
     
     playersDf = pd.DataFrame(nbaPlayers);
-    playersDf.to_csv('players.csv');
     print("Successfully retrieved players data");
+
+    return playersDf;
   except Exception as error:
     print("Error retriveing player: ", error)
 
 # Get all games for current season
 def getGamesForCurrentSeason():
-  global gamesDf;
+  gamesDf;
   gamesList = []
+  currentSeason = str(time.localtime().tm_year);
   nextCursor = None;
   kwargs = {
-        'seasons': ['2025'],
+        'seasons': [currentSeason],
         'per_page': 100
         };
   try:
@@ -127,18 +121,20 @@ def getGamesForCurrentSeason():
       time.sleep(1.5);
 
     gamesDf = pd.DataFrame(gamesList);
-    gamesDf.to_csv('games.csv');
+
     print("Successfully retrieved games list data");
+    return gamesDf;
   except Exception as error:
     print("Error retrieving games list: ", error);
 
+
 # Get game stats for each player, for initial load
-def getAllGameStats():
-  global gamesDf;
-  global allStatsDf;
+def getAllGameStats(gamesDf):
+  allStatsDf = None;
+
   if gamesDf is None:
-    print("Getting games list from DB");
-    gamesDf = pd.read_csv('games.csv');
+    raise "No games list";
+  
   gameList = gamesDf['game_id'].to_list();
     
   nextCursor = None;
@@ -193,58 +189,11 @@ def getAllGameStats():
       allStatsDf = pd.concat([allStatsDf, statsDF], ignore_index=True);
       time.sleep(1.1);
 
-    allStatsDf.to_csv('game_stats.csv', mode='a', index=False, header=False);
+    print("Successfully retrieved all games stats");
+    return allStatsDf;
 
   except Exception as error:
     print('Error retrieving game stats: ', error);
     if not allStatsDf.empty:
-      allStatsDf.to_csv('game_stats.csv');
       print(f'Partial data saved: {len(allStatsDf)} rows written to game_stats.csv');
-
-
-# teams list read for inital load, and insert into teams table
-def readTeamListCSV():
-  global teamDf;
-  print('Reading teams list...')
-  try:
-    teamDf = pd.read_csv('teams.csv', index_col=0);
-    teamDf.dropna(how='any', inplace=True);
-    return teamDf.to_json()
-  except Exception as error:
-    print("Error reading data from CSV for teams", error);
-
-  try:
-    teamDf.to_sql("teams", engine, if_exists='append', index=False);
-    print('Writing to teams table successful');
-  except Exception as error:
-    print("Error in writing teams to DB: ", error);
-  
-  
-
-# games list read for inital load, and insert into games table
-def readGamesListCSV():
-  global gamesDf;
-  print('Reading games list...')
-  
-  try:
-    gamesDf = pd.read_csv('games.csv', index_col=0);
-  except Exception as error:
-    print("Error reading data from CSV for games: ", error);
-
-  try:
-    gamesDf.to_sql("games", engine, if_exists='append', index=False);
-    print('Writing to games table successful');
-  except Exception as error:
-    print("Error in writing games to DB: ", error);
-  
-
-
-if __name__ == "__main__":
-  print("Starting Extract");
-  # getTeamNames();
-  # readTeamListCSV();
-  # getPlayers();
-  # getGamesForCurrentSeason();
-  # getGameStats();
-  # readTeamListCSV();
-  # readGamesListCSV();
+      return allStatsDf;
