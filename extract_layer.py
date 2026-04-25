@@ -51,7 +51,7 @@ def getTeamNames():
     teamDf.dropna(how='any', inplace=True); 
 
     print("Successfully retrieved teams data");
-    return teamDf.to_json();
+    return teamDf.to_json(orient='records');
   except Exception as error:
     print("Error retrieving teams: ", error);
 
@@ -99,7 +99,7 @@ def getPlayers():
     playersDf = pd.DataFrame(nbaPlayers);
     print("Successfully retrieved players data");
 
-    return playersDf.to_json();
+    return playersDf.to_json(orient='records');
   except Exception as error:
     print("Error retriveing player: ", error)
 
@@ -155,7 +155,7 @@ def getGamesForSeason(season='2025'):
 
     gamesDf = pd.DataFrame(gamesList);
     print("Successfully retrieved games list data");
-    return gamesDf.to_json(date_format='iso');
+    return gamesDf.to_json(orient='records', date_format='iso');
   except Exception as error:
     print("Error retrieving games list: ", error);
 

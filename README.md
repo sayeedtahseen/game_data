@@ -1,41 +1,71 @@
 # game_data
 
-An NBA data pipeline that pulls stats from the [balldontlie API](https://www.balldontlie.io/), saves them as CSVs, and loads them into a PostgreSQL database.
+An NBA data pipeline that pulls stats from the [balldontlie API](https://www.balldontlie.io/) and loads them into a PostgreSQL database, orchestrated with Apache Airflow.
 
 ## Stack
 
 - Python, `balldontlie` SDK, `pandas`, `python-dotenv`
 - `sqlalchemy` + `psycopg2-binary` for database writes
 - PostgreSQL 16 running in Docker
+- Apache Airflow for orchestration
 
-## How it works
+## Architecture
 
-`extract.py` has two layers of functions:
+```
+extract_layer.py  →  initial_load_dag.py  →  load_layer.py  →  PostgreSQL
+```
 
-### API → CSV
+### `extract_layer.py`
 
-| Function | Output | Description |
+Fetches data from the balldontlie API and returns JSON strings (`orient='records'`). All functions handle rate limiting with exponential backoff (up to 3 retries).
+
+| Function | Description |
+|---|---|
+| `getTeamNames()` | All 30 NBA teams — id, city, conference, division |
+| `getPlayers()` | All active players with team IDs (paginated) |
+| `getGamesForSeason(season)` | All games for a given season (default `2025`) |
+| `getAllGameStats(gamesDf)` | Per-player box scores for every game — used for initial CSV export only |
+
+### `load_layer.py`
+
+Accepts JSON strings or CSV data and upserts into PostgreSQL. All writes use `INSERT ... ON CONFLICT DO UPDATE` so re-runs update existing rows instead of failing.
+
+| Function | Table |
+|---|---|
+| `writeTeamsListToDB(teams)` | `teams` |
+| `writePlayersListToDB(players)` | `players` |
+| `writeGamesListToDB(gamesList)` | `games` |
+| `writeGameStatsToDB(gameStats)` | `game_stats` |
+| `loadGameStatsINTIAL()` | `game_stats` — loads from `game_stats.csv` due to API rate limits |
+
+### `initial_load_dag.py`
+
+Airflow DAG that runs the full initial load. Tasks execute in dependency order to respect FK constraints:
+
+```
+getTeamsNamesTask → loadTeamNamesTask ──┬──► loadPlayersTask ──┐
+getPlayersTask ───────────────────────────┘                     ├──► loadInitialGameStats
+getSeasonGamesTask → loadGamesListTask ────────────────────────┘
+                     (waits for teams)
+```
+
+## Database Schema
+
+| Table | PK | FK dependencies |
 |---|---|---|
-| `getTeamNames()` | `teams.csv` | All 30 NBA teams with IDs, city, conference, division |
-| `getPlayers()` | `players.csv` | All active players with team IDs (paginated) |
-| `getGamesForCurrentSeason()` | `games.csv` | All 2025 season games with scores and team info |
-| `getAllGameStats()` | `game_stats.csv` | Per-player box scores for every game (pts, reb, ast, shooting splits, etc.) |
+| `teams` | `id` | — |
+| `players` | `id` | `teams(id)` |
+| `games` | `game_id` | `teams(id)` |
+| `game_stats` | `id` | `teams(id)`, `games(game_id)` |
 
-`getAllGameStats()` iterates over every game ID, handles rate limiting with exponential backoff retries, and appends results to `game_stats.csv`.
-
-### CSV → Database
-
-| Function | Table | Description |
-|---|---|---|
-| `readTeamListCSV()` | `teams` | Reads `teams.csv` and writes to DB |
-| `readGamesListCSV()` | `games` | Reads `games.csv` and writes to DB |
+Schema files are in `./sql/` and run automatically on first container start.
 
 ## Data
 
 - `teams.csv` — 30 NBA teams
-- `games.csv` — ~40 games
 - `players.csv` — ~530 active players
-- `game_stats.csv` — ~7,700 rows of player box score stats
+- `games.csv` — 2025 season games
+- `game_stats.csv` — ~7,700 rows of player box score stats (pre-exported due to rate limits)
 
 ## Setup
 
@@ -45,8 +75,8 @@ Create a `.env` file in the project root:
 
 ```
 AUTH_KEY=your_balldontlie_api_key
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_USER=your_username
+POSTGRES_PASSWORD=your_password
 POSTGRES_DB=game_data
 DB_PORT=5332
 ```
@@ -63,31 +93,20 @@ pip install -r requirements.txt
 docker compose up -d
 ```
 
-This starts a PostgreSQL container on port `5332` and automatically runs the schema files in `./sql/`.
+Starts PostgreSQL on port `5332` and runs schema files from `./sql/` automatically.
 
-### 4. Run the pipeline
-
-Uncomment the relevant function calls in `__main__` in `extract.py` and run:
+### 4. Run Airflow
 
 ```bash
-python extract.py
+AIRFLOW__CORE__DAGS_FOLDER=$(pwd) airflow standalone
 ```
 
-### Connecting to the database from Python
+Then trigger the `game_data_init` DAG from the Airflow UI.
 
-```python
-from sqlalchemy import create_engine
-import os
-
-engine = create_engine(
-    f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost:{os.getenv('DB_PORT')}/{os.getenv('POSTGRES_DB')}"
-)
-```
-
-### Connecting via psql
+### Connecting to the database
 
 ```bash
-psql -h localhost -p 5332 -U postgres -d game_data
+docker exec -it postgres-game-data psql -U <POSTGRES_USER> -d game_data
 ```
 
 ## Resetting the database
@@ -97,8 +116,8 @@ docker compose down -v
 docker compose up -d
 ```
 
-The `-v` flag removes the volume so Postgres reinitializes and re-runs the SQL schema files from scratch.
+The `-v` flag removes the volume so Postgres reinitializes and re-runs the schema files from scratch. To clear data without dropping the schema:
 
-## Status
-
-Data extraction and CSV export are working. Database schema is defined and Postgres loads automatically via Docker. CSV → DB loading is implemented for teams and games.
+```sql
+TRUNCATE TABLE game_stats, games, players, teams CASCADE;
+```

@@ -23,11 +23,14 @@ The `-v` flag removes the volume so Postgres reinitializes and re-runs the SQL f
 |---|---|
 | Host | `localhost` |
 | Port | `5332` |
-| User | `postgres` (default) |
-| Password | `postgres` (default) |
-| Database | `game_data` |
+| User | `POSTGRES_USER` from `.env` |
+| Password | `POSTGRES_PASSWORD` from `.env` |
+| Database | `POSTGRES_DB` from `.env` |
 
-Override defaults by setting `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` in `.env`.
+Connect via psql:
+```bash
+docker exec -it postgres-game-data psql -U <POSTGRES_USER> -d game_data
+```
 
 ## Schema
 
@@ -106,7 +109,7 @@ Stores per-player box score stats for every game. References `players`, `teams`,
 | `turnover` | NUMERIC | Turnovers |
 | `pf` | NUMERIC | Personal fouls |
 | `pts` | NUMERIC | Points |
-| `player_id` | INTEGER | Foreign key → `players.id` |
+| `player_id` | INTEGER | Player id (no FK constraint) |
 | `player_first_name` | VARCHAR(100) | Player first name |
 | `player_last_name` | VARCHAR(100) | Player last name |
 | `player_team_id` | INTEGER | Foreign key → `teams.id` |
@@ -129,11 +132,8 @@ teams
   ├── games.home_team_id
   ├── games.visitor_team_id
   └── game_stats.player_team_id
-            .home_team_id
-            .visitor_team_id
-
-players
-  └── game_stats.player_id
+            .game_home_team_id
+            .game_visitor_team_id
 
 games
   └── game_stats.game_id
