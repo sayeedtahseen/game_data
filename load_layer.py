@@ -8,9 +8,14 @@ from dotenv import load_dotenv
 load_dotenv();
 
 # engine for postgres
-engine = create_engine(
-    f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost:5332/{os.getenv('POSTGRES_DB')}"
-)
+from sqlalchemy import create_engine
+
+url = "postgresql://postgres.uifjonevlfmymrlpkuyv:Reymisterio.619@aws-1-us-east-2.pooler.supabase.com:5432/postgres?sslmode=require"
+engine = create_engine(url)
+
+# engine = create_engine(
+#     f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@localhost:5332/{os.getenv('POSTGRES_DB')}"
+# )
 
 def _upsert(records, table_name, primary_key):
   metadata = MetaData()
@@ -62,3 +67,7 @@ def loadGameStatsINTIAL():
   except Exception as error:
     print("Error in writing game stats to DB: ", error);
     raise;
+
+
+# if __name__ == "__main__":
+#   loadGameStatsINTIAL();

@@ -41,3 +41,7 @@ airflow dags trigger game_data_init
 - `catchup=False` — no backfill runs for past dates
 - Inter-task data is passed as JSON strings (`orient='records'`) through XComs — no custom XCom backend needed
 - `load_layer.py` manages its own database connection via env vars — no Airflow Postgres connection needs to be configured in the UI
+
+
+## SUPABASE
+Supabase connection string: postgresql://postgres:[YOUR-PASSWORD]@db.uifjonevlfmymrlpkuyv.supabase.co:5432/postgres
